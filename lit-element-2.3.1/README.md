@@ -1,4 +1,5 @@
 **Modified LitElement library. Changed to work with a toolchain-less environment without Node.js.**
+**Edited two lines: one import and one export statement.**
 
 # LitElement
 A simple base class for creating fast, lightweight web components with [lit-html](https://lit-html.polymer-project.org/).

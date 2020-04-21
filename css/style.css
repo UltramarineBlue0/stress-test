@@ -1,0 +1,4 @@
+body.dark-mode {
+	color: var(--light);
+	background-color: var(--dark);
+}
