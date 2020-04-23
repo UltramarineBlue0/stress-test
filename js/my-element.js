@@ -1,10 +1,15 @@
-import { LitElement } from "../lit-element-2.3.1/lit-element.js";
+import { LitElement } from "lit-element";
 
 /**
  * Change LitElement to render nodes as direct children without creating a shadow root.
+ * This way, bootstrap's css applies to the child nodes.
  */
-export class MyElement extends LitElement {
+export class StyledElement extends LitElement {
 	createRenderRoot() {
 		return this;
 	}
-}
+};
+
+export const register = (htmlTag, classFunc) => {
+	customElements.define(htmlTag, classFunc);
+};

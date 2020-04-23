@@ -1,12 +1,10 @@
-import { html } from "../lit-element-2.3.1/lit-element.js";
-import { MyElement } from "./my-element.js";
+import { html } from "lit-html";
+import { StyledElement, register } from "./my-element.js";
 
-class ControllerElement extends MyElement {
+register('test-controller', class ControllerElement extends StyledElement {
 	render() {
 		return html`
-		<p>Test: LitElement is working</p>
-		`;
+<p>Test: LitElement is working</p>
+`;
 	}
-}
-
-customElements.define('test-controller', ControllerElement);
+});
