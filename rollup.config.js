@@ -1,5 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import { terser } from "rollup-plugin-terser";
+// import wasm from '@rollup/plugin-wasm';
 
 // Comments in package.json looks awkward, so placing comment here:
 // This seems to be the minimum effort required with the least amount of dependencies to
@@ -16,9 +17,13 @@ export default {
 	plugins: [
 		resolve(),
 		terser({
-			// This avoids costly AST transformations. This has little impact here,
+			// False avoids costly AST transformations. This has little impact here,
 			// but it can improve build time without significantly increasing file size.
-			compress: false,
+			// Also irrelevant here: if the code is "manually obfuscated" using proxies and
+			// reflection - if, for example, the '.' and '()' operators are overloaded to have
+			// side effects - AST transformations here would break that kind of code, because
+			// it assumes "normal" js code.
+			compress: true,
 			mangle: true,
 			output: {
 				comments: false,
@@ -33,5 +38,7 @@ export default {
 			keep_fnames: false,
 			warnings: "verbose",
 		}),
+		// Add deps, if wasm simd CPU stress test is added
+		// wasm(),
 	],
 };

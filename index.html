@@ -26,12 +26,33 @@
 </head>
 
 <body>
+	<!--Fixed position because the WebGL canvas needs to be behind main page-->
 	<main class="fixed-pos">
-		<h1>Soon™</h1>
-		<p>Stress Test</p>
-		<test-controller></test-controller>
+		<div class="container-lg">
+			<div class="row justify-content-center">
+				<section class="col-lg-12 mb-3">
+					<h1>CPU & GPU stress testing</h1>
+					<noscript>
+						<b class="lead">Please enable javascript to use this stress test.</b>
+					</noscript>
+					<web-components-support>
+						<b class="lead">Your browser doesn't support web components natively. It's unlikely that this
+							stress test will work properly.</b>
+					</web-components-support>
+				</section>
+			</div>
+			<div class="row">
+				<section class="col-lg-12">
+					<p>Soon™</p>
+					<test-controller></test-controller>
+				</section>
+			</div>
+		</div>
 	</main>
-	
+
+	<test-target>
+		<canvas class="background-canvas"></canvas>
+	</test-target>
 </body>
 
 </html>
