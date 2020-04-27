@@ -25,3 +25,7 @@
 	border: 0;
 	z-index: -99;
 }
+/*Use specificity to override Bootstrap https://developer.mozilla.org/en-US/docs/Web/CSS/Specificity#How_is_specificity_calculated*/
+[class].max-997px[class].max-997px {
+	max-width: 997px;
+}

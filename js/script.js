@@ -1,6 +1,6 @@
 "use strict";
 
-import { html, nothing } from "lit-html";
+import { nothing } from "lit-html";
 import { StyledElement, register } from "./my-element.js";
 
 register("web-components-support", class BrowserSupportElement extends StyledElement {
@@ -14,10 +14,4 @@ register("web-components-support", class BrowserSupportElement extends StyledEle
 	}
 });
 
-register("test-controller", class ControllerElement extends StyledElement {
-	render() {
-		return html`
-<p>Test: LitElement is working</p>
-`;
-	}
-});
+import "./system-info/system-info.js";

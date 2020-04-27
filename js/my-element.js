@@ -1,3 +1,4 @@
+import { html } from "lit-html";
 import { LitElement } from "lit-element";
 
 /**
@@ -13,3 +14,7 @@ export class StyledElement extends LitElement {
 export const register = (htmlTag, classFunc) => {
 	customElements.define(htmlTag, classFunc);
 };
+
+export const externalLink = (text, url) => html`
+<a href="${url}" target="_blank" rel="nofollow noopener noreferrer" referrerpolicy="no-referrer">${text}</a>
+`;
