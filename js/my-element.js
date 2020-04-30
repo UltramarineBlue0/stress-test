@@ -1,5 +1,6 @@
 import { html } from "lit-html";
 import { LitElement } from "lit-element";
+import { isAbsent, queueTask } from "./utils.js";
 
 /**
  * Change LitElement to render nodes as direct children without creating a shadow root.
@@ -9,6 +10,12 @@ export class StyledElement extends LitElement {
 	createRenderRoot() {
 		return this;
 	}
+
+	firstUpdated(changedProperties) {
+		if (!isAbsent(this.deferredInitialization)) {
+			queueTask(() => this.deferredInitialization(changedProperties));
+		}
+	}
 };
 
 export const register = (htmlTag, classFunc) => {
@@ -16,5 +23,4 @@ export const register = (htmlTag, classFunc) => {
 };
 
 export const externalLink = (text, url) => html`
-<a href="${url}" target="_blank" rel="nofollow noopener noreferrer" referrerpolicy="no-referrer">${text}</a>
-`;
+<a href="${url}" target="_blank" rel="nofollow noopener noreferrer" referrerpolicy="no-referrer">${text}</a>`;
