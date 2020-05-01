@@ -3,6 +3,7 @@
 	"editor.detectIndentation": false,
 	"editor.tabSize": 4,
 	"files.associations": {
-		"complex": "cpp"
+		"complex": "cpp",
+		"cmath": "cpp"
 	}
 }
