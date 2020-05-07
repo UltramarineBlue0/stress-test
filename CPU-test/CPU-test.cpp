@@ -1,124 +1,122 @@
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <numeric>
 #include <random>
 
 namespace CPUTest {
 
 /**
- * Using xoshiro128++ from David Blackman and Sebastiano Vigna; licence CC0
+ * Using xoroshiro128++ from David Blackman and Sebastiano Vigna; licence CC0
  * This should be pretty fast; quality is not very important: the CPU is doing
- * useless work anyway.
+ * useless work as a pure stress test.
  */
 class Random {
 private:
-  uint32_t state[4];
-
-  static constexpr float FLOAT_BASE = 1.0f / (UINT32_C(1) << 24);
-
-  static uint32_t rotl(const uint32_t x, int k) {
-    return (x << k) | (x >> (32 - k));
+  static uint64_t rotl(const uint64_t x, int k) {
+    return (x << k) | (x >> (64 - k));
   }
+
+  uint64_t s[2]{};
 
 public:
   Random() {
     std::random_device rd{};
-    state[0] = rd();
-    state[1] = rd();
-    state[2] = rd();
-    state[3] = rd();
+    s[0] = rd();
+    s[1] = rd();
   }
 
-  uint32_t next32Bits() {
-    const uint32_t result = rotl(state[0] + state[3], 7) + state[0];
+  uint64_t next_64() {
+    const uint64_t s0 = s[0];
+    uint64_t s1 = s[1];
+    const uint64_t result = rotl(s0 + s1, 17) + s0;
 
-    const uint32_t tmp = state[1] << 9;
-
-    state[2] ^= state[0];
-    state[3] ^= state[1];
-    state[1] ^= state[2];
-    state[0] ^= state[3];
-
-    state[2] ^= tmp;
-
-    state[3] = rotl(state[3], 11);
+    s1 ^= s0;
+    s[0] = rotl(s0, 49) ^ s1 ^ (s1 << 21); // a, b
+    s[1] = rotl(s1, 28);                   // c
 
     return result;
   }
 
-  float nextFloat() {
+  double nextDouble() {
     // Same as
     // https://github.com/openjdk/jdk11u/blob/master/src/java.base/share/classes/java/util/concurrent/ThreadLocalRandom.java
     // Unlike integers: float representations aren't equally distributed.
     // Therefore, this must ensure equal distribution of ranges, not bit
     // patterns.
-    return (next32Bits() >> 8) * FLOAT_BASE;
+    static constexpr double DOUBLE_BASE = 1.0 / (UINT64_C(1) << 53);
+    return (next_64() >> 11) * DOUBLE_BASE;
   }
 };
 
 static Random rndGen{};
 
 // The stress test turns
-using CNumber = std::complex<float>;
+
+static constexpr uint32_t align1K = 1024;
+// 45° angle in radians
+static constexpr double radian45 =
+    0.78539816339744830961566084581987572104929234984377645524373614807695410157155224965700870633552926699553702162832;
+// Radius 2; 45° angle
+static constexpr double startingCoordinate = radian45 * 2.0;
+
+using CNumber = std::complex<double>;
 using namespace std::complex_literals;
 
-// Radius 2; 45° angle
-static const float startingCoordinate = std::sqrt(2.f);
-// 45° angle in radians
-static const float radian45 = 1.f / std::sqrt(2.f);
-
-class alignas(1024) StressTest {
+class alignas(align1K) StressTest {
 private:
-  // 512 KiB
-  static constexpr uint32_t dataSize = 65536;
+  // 768 KiB
+  static constexpr int32_t arraySize = (512 + 256) * 1024;
+  static constexpr int32_t elemCount = arraySize / (8 * 2);
 
-  CNumber testData[dataSize];
+  alignas(align1K) std::array<CNumber, elemCount> testData{};
 
   // Random angle between 0° and 45°
-  static float nextAngle() { return rndGen.nextFloat() * radian45; }
+  static double nextAngle() { return rndGen.nextDouble() * radian45; }
 
-  static CNumber swapRealImag(CNumber input) {
-    const auto realPart = input.real();
-    input.real(input.imag());
-    input.imag(realPart);
-    return input;
+  static CNumber transformationMultiplierForRotation(double rotationAngle) {
+    // Euler's formula: rotate z by x degree -> z * (cos(x) + i * sin(x))
+    // = z * e^ix
+    /*CNumber result{std::cos(rotationAngle), std::sin(rotationAngle)};
+    return result;*/
+    CNumber ix{0.0, rotationAngle};
+    return std::exp(ix);
   }
 
-  static CNumber approximateExp(CNumber input) { return std::exp(input); }
-
-  static CNumber randomlyRotate(CNumber input) {
-    // Euler's formula: rotate z by x degree -> z * e^ix
-    const auto iTheta = 1if * nextAngle();
-    return input * approximateExp(iTheta);
+  static CNumber processElement(CNumber input) {
+    // Randomly rotate 0-45° counterclockwise
+    const CNumber transformationMultiplier =
+        transformationMultiplierForRotation(nextAngle());
+    return input * transformationMultiplier;
   }
 
 public:
   StressTest() {
-    for (uint32_t i = 0; i < dataSize; i++) {
-      testData[i].real(startingCoordinate);
-      testData[i].imag(startingCoordinate);
-    }
+    const CNumber initialValue{startingCoordinate, startingCoordinate};
+    testData.fill(initialValue);
   }
 
-  void runOneInteration() {
-    for (uint32_t i = 0; i < dataSize; i += 2) {
-      // Swap first with second element, mirror the point using iy=x as mirror
-      // axis. In SIMD, 128 bit width, 4 floats: shuffle 1234 -> 4321
-      auto first = swapRealImag(testData[i + 1]);
-      auto second = swapRealImag(testData[i]);
-
-      testData[i] = randomlyRotate(first);
-      testData[i + 1] = randomlyRotate(second);
-    }
+  double createDataDependency() {
+    CNumber start{};
+    auto result = std::accumulate(testData.cbegin(), testData.cend(), start);
+    return result.real() + result.imag();
   }
 
-  float createDataDependency() {
-    float result = 0.f;
-    for (uint32_t i = 0; i < dataSize; i++) {
-      result += testData[i].real();
-      result += testData[i].imag();
+  double runTest(int32_t testDuration) {
+    const int32_t iterCount = 128 * testDuration;
+    const int32_t loopCount = iterCount / 2;
+    for (int32_t i = 0; i < loopCount; i++) {
+
+      for (uint32_t i = 0; i < testData.size(); i++) {
+        testData[i] = processElement(testData[i]);
+      }
+
+      for (int32_t i = testData.size() - 1; i >= 0; i--) {
+        testData[i] = processElement(testData[i]);
+      }
     }
-    return result;
+    return createDataDependency();
   }
 };
 
@@ -127,11 +125,7 @@ static StressTest stressTest{};
 } // namespace CPUTest
 
 extern "C" {
-
-float runTest(uint32_t iterationCount) {
-  for (uint64_t i = 0; i < iterationCount * UINT64_C(1024); i++) {
-    CPUTest::stressTest.runOneInteration();
-  }
-  return CPUTest::stressTest.createDataDependency();
+double runTest(int32_t testDuration) {
+  return CPUTest::stressTest.runTest(testDuration);
 }
 }

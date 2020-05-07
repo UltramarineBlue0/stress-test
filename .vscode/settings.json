@@ -4,6 +4,7 @@
 	"editor.tabSize": 4,
 	"files.associations": {
 		"complex": "cpp",
-		"cmath": "cpp"
+		"cmath": "cpp",
+		"array": "cpp"
 	}
 }
