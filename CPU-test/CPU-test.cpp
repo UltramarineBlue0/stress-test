@@ -5,15 +5,21 @@
 #include <cstring>
 #include <numeric>
 #include <random>
+#include <type_traits>
+#include <vector>
 
 namespace CPUTest {
 
-static std::random_device entropyGen{};
+// Performance of random_device is platform dependent. Since multiple FastRand
+// are created for each test run, random_device could have an unexpectedly high
+// influence on the test. So I'm not using it directly to seed FastRand.
+static std::random_device rd{};
+static std::mt19937_64 entropyGen{rd()};
 
 /**
  * Using xoroshiro128++ from David Blackman and Sebastiano Vigna; licence CC0
- * This should be pretty fast; quality is not very important: the CPU is doing
- * useless work as a pure stress test.
+ * This should be very fast while being very small; quality is not very
+ * important: the CPU is doing useless work as a pure stress test.
  */
 class FastRand {
 private:
@@ -59,20 +65,10 @@ public:
   FastRand &operator=(FastRand &&rnd) = default;
 };
 
-/**
- * Originally the idea is to have a small pool of rndGen, maybe 2 or 4, and give
- * each loop iteration a different rndGen than the previous loop. I had hoped
- * that an OoO CPU would take advantage of the independent data streams and
- * calculate faster. Looking at perf stat result, it turns out that one single
- * rndGen is significantly faster, even though it introduces data dependency
- * between two subsequent loop iterations. I suspect that the data load and
- * store is too costly, even though it's all hot data. With only one rndGen, the
- * entire state of rndGen can be kept in registers and never do any loads and
- * stores to rndGen during the main stress test.
- */
-static constexpr auto poolSize = 0b1;
-// static constexpr uint32_t rndGenSelectorMask = 0b111;
-static std::array<FastRand, poolSize> rndGenPool{FastRand{}};
+static_assert(!std::is_copy_constructible<FastRand>::value);
+static_assert(!std::is_copy_assignable<FastRand>::value);
+static_assert(std::is_move_constructible<FastRand>::value);
+static_assert(std::is_move_assignable<FastRand>::value);
 
 /**
  * The stress test turns complex numbers in a circle in the complex number
@@ -115,7 +111,8 @@ private:
     // Euler's formula: rotate z by x degree
     // -> z * (cos(x) + i * sin(x)) = z * e^ix
 
-    /*return CNumber{std::cos(rotationAngle), std::sin(rotationAngle)};*/
+    // return CNumber{std::cos(rotationAngle), std::sin(rotationAngle)};
+    // return std::exp(CNumber{0, rotationAngle});
 
     // Calculating the result using std::exp or the trigonometric functions is
     // too slow. "On paper" (counting operations) continued fractions may be
@@ -123,8 +120,8 @@ private:
     // complex number divisions. I'm not sure if that can be avoided. (I also
     // don't know how to implement it as code, the taylor series can be
     // translated one to one to C++.) Stopping at x^5 is good enough for the
-    // stress test that uses small angles. The follwing simplification also
-    // avoids any divisions.
+    // stress test that uses small angles and limited iteration count. The
+    // follwing simplification also avoids any floating point divisions.
 
     // simplify (WolframAlpha):
     // 1 + i x + 1/2 (i x)^2 + 1/6 (i x)^3 + 1/24 (i x)^4 + 1/120 (i x)^5
@@ -140,28 +137,24 @@ private:
     return CNumber{realPart, imagPart};
   }
 
-  static CNumber randomFlipSign(FastRand &rndGen, CNumber input) {
-    // Randomly flip the sign of the real and imag part. Since the length
-    // doesn't change, the resulting point is still part of the circle with
-    // radius 2.
+  static CNumber randomlyFlip(FastRand &rndGen, CNumber input) {
+    static_assert(sizeof(uint64_t) == sizeof(CNumber::value_type));
+    // Randomly flip the sign of the imag part and swap real with imag. Since
+    // the length doesn't change, the resulting point is still part of the
+    // circle with radius 2. If the sign is flipped, it's a 90° counterclockwise
+    // rotation, if not, it's a mirror on the y=x axis.
     static constexpr auto HIGHEST_BIT = (UINT64_C(1) << 63);
-    const auto realMask = rndGen.next_64() & HIGHEST_BIT;
     const auto imagMask = rndGen.next_64() & HIGHEST_BIT;
 
-    auto real = input.real();
     auto imag = input.imag();
-    uint64_t realAsInt{};
     uint64_t imagAsInt{};
 
     // Apparently this is the only standard conforming way of type punning.
-    std::memcpy(&realAsInt, &real, sizeof(uint64_t));
     std::memcpy(&imagAsInt, &imag, sizeof(uint64_t));
-    realAsInt = realAsInt ^ realMask;
     imagAsInt = imagAsInt ^ imagMask;
-    std::memcpy(&real, &realAsInt, sizeof(uint64_t));
     std::memcpy(&imag, &imagAsInt, sizeof(uint64_t));
 
-    return CNumber{real, imag};
+    return CNumber{imag, input.real()};
   }
 
   static CNumber processElement(FastRand &rndGen, CNumber input) {
@@ -170,30 +163,44 @@ private:
     const auto transformationMultiplier =
         transformationMultiplierForRotation(rotationAngle);
     const auto rotatedResult = input * transformationMultiplier;
-    return randomFlipSign(rndGen, rotatedResult);
-  }
-
-  // Fast method to guarantee that the optimizer won't remove the main loop
-  double createDataDependency() {
-    const auto result =
-        std::accumulate(testData.cbegin(), testData.cend(), CNumber{});
-    return result.real() + result.imag();
+    return randomlyFlip(rndGen, rotatedResult);
   }
 
 public:
   StressTest() { testData.fill(initialValue); }
 
   double runTest() {
+    static_assert((elemCount % 2) == 0);
     // This loop count will result in a few seconds of run time. I would imagine
     // that even on ARM A55 CPU cores it won't take more than 20 seconds.
-    static constexpr auto iterCount = 4 * 1024;
+    static constexpr auto iterCount = (4 + 2) * 1024;
     static constexpr auto loopCount = iterCount / 2;
-    auto &rndGen = rndGenPool[0];
+
+    /**
+     * Originally the idea is to have a small pool of rndGen, maybe 2 or 4, and
+     * give each loop iteration a different rndGen than the previous loop. I had
+     * hoped that an OoO CPU would take advantage of the independent data
+     * streams and calculate faster. However the test result shows that it's
+     * only slightly but consistently faster. Perhaps I underestimated modern
+     * high performance microarchitectures, nevertheless i'll keep this in.
+     *
+     * Additionally, looking at Godbolt output, it seems that the rndGens must
+     * be local to the function for the Clang to "fold" the fields of rndGen
+     * into int registers. GCC is a bit better, these could also be private
+     * members. They can't be globals or in arrays, in those cases, the compiler
+     * will generate loads and stores which will make the test significantly
+     * slower. (Even though it's hot data, not sure why it would be so slow. Is
+     * it overwhelming the cache/memory subsystem? I can't imagine that it
+     * does.)
+     */
+    FastRand rndGen{};
+    FastRand rndGen2{};
+
     for (auto i = 0; i < loopCount; i++) {
 
-      for (uint32_t i = 0; i < testData.size(); i++) {
-
+      for (uint32_t i = 0; i < testData.size(); i += 2) {
         testData[i] = processElement(rndGen, testData[i]);
+        testData[i + 1] = processElement(rndGen2, testData[i + 1]);
       }
       // This reverse loop guarantees that each accessed element is right next
       // to the previous element. While perf stat do report lower LLC loads and
@@ -201,24 +208,48 @@ public:
       // imagine that this could potentially help low power in-order cores with
       // small caches. There, it could reduce wasted cycles due to pipeline
       // stalls in case of cache misses.
-      for (int32_t i = testData.size() - 1; i >= 0; i--) {
-
+      for (int32_t i = testData.size() - 1; i >= 0; i -= 2) {
         testData[i] = processElement(rndGen, testData[i]);
+        testData[i - 1] = processElement(rndGen2, testData[i - 1]);
       }
     }
-    return createDataDependency();
+
+    // Quick way to guarantee that the optimizer can't remove the main loop.
+    // Bias doesn't matter here. Just that it's possible to select any element
+    // in the array
+    const auto index = rndGen.next_64() % elemCount;
+    return testData[0].imag() + testData[index].real();
   }
 
   void reset() { testData.fill(initialValue); }
+
+  void copyTestData(std::vector<CNumber> &copyTarget) const {
+    copyTarget.clear();
+    copyTarget.reserve(testData.size());
+    copyTarget.assign(testData.cbegin(), testData.cend());
+  }
 };
 
-static StressTest stressTest{};
+/**
+ * According to perf stat, a local variable in the test function will
+ * significantly reduce the L1 dcache loads compared to a global. As expected it
+ * reduced the run time in multi threaded test when all logical cores are
+ * saturated. Interestingly it slightly increased single thread run time, not
+ * really sure why, since other metrics stayed mostly the same.
+ */
+// static StressTest stressTest{};
 
 } // namespace CPUTest
 
-extern "C" {
-double runTest() {
-  CPUTest::stressTest.reset();
-  return CPUTest::stressTest.runTest();
+// wasm stress test
+extern "C" double runTest() {
+  CPUTest::StressTest stressTest{};
+  return stressTest.runTest();
 }
+
+// local native stress test
+void runTest(std::vector<CPUTest::CNumber> &testResults) {
+  CPUTest::StressTest stressTest{};
+  stressTest.runTest();
+  stressTest.copyTestData(testResults);
 }
