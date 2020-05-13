@@ -3,7 +3,6 @@
 #include <complex>
 #include <cstdint>
 #include <cstring>
-#include <numeric>
 #include <random>
 #include <type_traits>
 #include <vector>
@@ -132,8 +131,8 @@ private:
     const auto xPow3 = xPow2 * rotationAngle;
     const auto xPow4 = xPow2 * xPow2;
     const auto xPow5 = xPow4 * rotationAngle;
-    const auto realPart = (1.0 / 24.0) * (xPow4 - 12.0 * xPow2 + 24.0);
-    const auto imagPart = (1.0 / 120.0) * xPow5 - (1.0 / 6.0) * xPow3 + xPow1;
+    const auto realPart = 1.0 - (1.0 / 2.0) * xPow2 + (1.0 / 24.0) * xPow4;
+    const auto imagPart = xPow1 - (1.0 / 6.0) * xPow3 + (1.0 / 120.0) * xPow5;
     return CNumber{realPart, imagPart};
   }
 
@@ -157,12 +156,27 @@ private:
     return CNumber{imag, input.real()};
   }
 
+  static CNumber multiply(CNumber first, CNumber second) {
+    // The multiply operator in stdlib takes special care of infinity and NaNs.
+    // That introduces a lot of branches. "-Ofast" eliminates those cases by
+    // assuming that floats are never infinite or NaN. However emscripten
+    // doesn't seem to accept "-Ofast" and I don't know if llvm-opts does what I
+    // assume it does.
+    // https://mathworld.wolfram.com/ComplexMultiplication.html
+    const auto aTimesC = first.real() * second.real();
+    const auto bTimesD = first.imag() * second.imag();
+    const auto aTimesD = first.real() * second.imag();
+    const auto bTimesC = first.imag() * second.real();
+
+    return CNumber{aTimesC - bTimesD, aTimesD + bTimesC};
+  }
+
   static CNumber processElement(FastRand &rndGen, CNumber input) {
     // Randomly rotate 0-45° counterclockwise
     const auto rotationAngle = nextAngle(rndGen);
     const auto transformationMultiplier =
         transformationMultiplierForRotation(rotationAngle);
-    const auto rotatedResult = input * transformationMultiplier;
+    const auto rotatedResult = multiply(input, transformationMultiplier);
     return randomlyFlip(rndGen, rotatedResult);
   }
 
@@ -248,7 +262,7 @@ extern "C" double runTest() {
 }
 
 // local native stress test
-void runTest(std::vector<CPUTest::CNumber> &testResults) {
+void runLocalTest(std::vector<CPUTest::CNumber> &testResults) {
   CPUTest::StressTest stressTest{};
   stressTest.runTest();
   stressTest.copyTestData(testResults);

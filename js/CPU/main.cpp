@@ -8,7 +8,7 @@
 #include <vector>
 
 extern "C" double runTest();
-void runTest(std::vector<std::complex<double>> &testResults);
+void runLocalTest(std::vector<std::complex<double>> &testResults);
 
 void printStats(const std::vector<std::complex<double>> &testResults) {
   static constexpr auto radianToDegree =
@@ -54,7 +54,7 @@ int main() {
 
   for (auto i = 0; i < 9; i++) {
     const auto start = std::chrono::steady_clock::now();
-    // runTest(testResults);
+    // runLocalTest(testResults);
     const auto testResult = runTest();
     const auto stop = std::chrono::steady_clock::now();
 
