@@ -1,6 +1,6 @@
-import { StyledElement, register, externalLink } from "../my-element.js";
+import { StyledElement, register, externalLink } from "../common/my-element.js";
 import { html } from "lit-html";
-import { isFunction, isAbsent, isEmpty } from "../utils.js";
+import { isFunction, isAbsent, isEmpty } from "../common/utils.js";
 
 /*
 * Show some information about the browser and the hardware.

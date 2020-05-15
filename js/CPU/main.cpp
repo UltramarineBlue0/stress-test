@@ -75,5 +75,6 @@ int main() {
                                    std::chrono::duration<double>{0});
   std::cout << "Mean duration: " << (sum / testDuration.size()).count()
             << "\nMedian duration: "
-            << (testDuration[testDuration.size() / 2]).count() << '\n';
+            << (testDuration[testDuration.size() / 2]).count()
+            << "\n------------\n";
 }

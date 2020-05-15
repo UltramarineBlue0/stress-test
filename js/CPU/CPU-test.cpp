@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -11,9 +12,12 @@ namespace CPUTest {
 
 // Performance of random_device is platform dependent. Since multiple FastRand
 // are created for each test run, random_device could have an unexpectedly high
-// influence on the test. So I'm not using it directly to seed FastRand.
-static std::random_device rd{};
-static std::mt19937_64 entropyGen{rd()};
+// influence on the test. Also wasm platform don't really have a random_device,
+// using current time instead.
+static const auto timeStamp = std::chrono::high_resolution_clock::now();
+static const auto seed =
+    static_cast<uint64_t>(timeStamp.time_since_epoch().count());
+static std::mt19937_64 entropyGen{seed};
 
 /**
  * Using xoroshiro128++ from David Blackman and Sebastiano Vigna; licence CC0
@@ -131,8 +135,8 @@ private:
     const auto xPow3 = xPow2 * rotationAngle;
     const auto xPow4 = xPow2 * xPow2;
     const auto xPow5 = xPow4 * rotationAngle;
-    const auto realPart = 1.0 - (1.0 / 2.0) * xPow2 + (1.0 / 24.0) * xPow4;
-    const auto imagPart = xPow1 - (1.0 / 6.0) * xPow3 + (1.0 / 120.0) * xPow5;
+    const auto realPart = 1.0 + (1.0 / 24.0) * (-12.0 * xPow2 + xPow4);
+    const auto imagPart = xPow1 + (1.0 / 120.0) * (-20.0 * xPow3 + xPow5);
     return CNumber{realPart, imagPart};
   }
 
@@ -185,8 +189,8 @@ public:
 
   double runTest() {
     static_assert((elemCount % 2) == 0);
-    // This loop count will result in a few seconds of run time. I would imagine
-    // that even on ARM A55 CPU cores it won't take more than 20 seconds.
+    // This loop count will result in a few seconds of run time. I hope that
+    // even on ARM A55 CPU cores it won't take more than 30 seconds.
     static constexpr auto iterCount = (4 + 2) * 1024;
     static constexpr auto loopCount = iterCount / 2;
 
@@ -230,7 +234,7 @@ public:
 
     // Quick way to guarantee that the optimizer can't remove the main loop.
     // Bias doesn't matter here. Just that it's possible to select any element
-    // in the array
+    // in the array. testData[0] is the last element changed by the loop above.
     const auto index = rndGen.next_64() % elemCount;
     return testData[0].imag() + testData[index].real();
   }

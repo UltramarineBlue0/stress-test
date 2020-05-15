@@ -1,5 +1,5 @@
 import { html } from "lit-html";
-import { StyledElement, register } from "../my-element.js";
+import { StyledElement, register } from "../common/my-element.js";
 
 /*
 * TODO: switch to OffscreenCanvas, when firefox adds support for it
@@ -33,7 +33,7 @@ register("test-target", class TestTargetElement extends StyledElement {
 			stencil: false,
 		});
 
-		globalThis.testTargetElement = this;
-		console.dir(this);
+		// globalThis.testTargetElement = this;
+		// console.dir(this);
 	}
 });
