@@ -10,8 +10,8 @@
 
 	<title>Stress Test</title>
 
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.13.0/css/all.min.css"
-		integrity="sha256-h20CPZ0QyXlBuAw7A+KluUYx/3pK+c7lYEpqLTlxjYQ=" crossorigin="anonymous">
+	<!--<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.13.0/css/all.min.css"
+		integrity="sha256-h20CPZ0QyXlBuAw7A+KluUYx/3pK+c7lYEpqLTlxjYQ=" crossorigin="anonymous">-->
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@4.4.1/dist/darkly/bootstrap.min.css"
 		integrity="sha256-WzKrnqJMmUZVHL8Im0hFLIOJ3UiQtgwK7zNfwxb5Bx0=" crossorigin="anonymous">
 
@@ -31,16 +31,13 @@
 		<div class="container-fluid max-997px">
 			<section class="mb-3">
 				<h1>CPU & GPU stress testing</h1>
-				<noscript>
-					<b class="text-warning lead">Please enable javascript to use this stress test.</b>
-				</noscript>
-				<web-components-support hidden>
-					<b class="text-warning lead">Your browser doesn't support web components natively. This stress test won't work.</b>
+				<web-components-support>
+					<b class="text-warning lead">This stress test requires JavaScript, WebComponents, WebGL 2 and WebAssembly support.</b>
 				</web-components-support>
 			</section>
 			<section>
-				<p>Soon™</p>
-				<test-controller></test-controller>
+				<test-interface></test-interface>
+				<notify-element></notify-element>
 				<system-info></system-info>
 			</section>
 		</div>

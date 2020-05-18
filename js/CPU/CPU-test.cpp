@@ -57,8 +57,6 @@ public:
     return (next_64() >> 11) * DOUBLE_BASE;
   }
 
-  bool nextBool() { return next_64() >> 63; }
-
   // Move only type. Prevent accidental cloning: the algorithm should modify the
   // original generator instead of a copy of it.
   ~FastRand() = default;
@@ -72,6 +70,52 @@ static_assert(!std::is_copy_constructible<FastRand>::value);
 static_assert(!std::is_copy_assignable<FastRand>::value);
 static_assert(std::is_move_constructible<FastRand>::value);
 static_assert(std::is_move_assignable<FastRand>::value);
+
+/**
+ * PCG32 (single sequence) from Melissa E. O'Neill; licence MIT
+ * Very fast 32 bit random number generator
+ */
+class FastRand32 {
+private:
+  static constexpr auto PCG_DEFAULT_MULTIPLIER_64 =
+      UINT64_C(6364136223846793005);
+  static constexpr auto PCG_DEFAULT_INCREMENT_64 =
+      UINT64_C(1442695040888963407);
+  static constexpr auto BOOL_MASK = UINT32_C(1);
+
+  static uint32_t rotr_32(uint32_t value, uint32_t rot) {
+    return (value >> rot) | (value << ((-rot) & 31));
+  }
+
+  uint64_t state{};
+
+public:
+  FastRand32() {
+    next_32();
+    state += entropyGen();
+    next_32();
+  }
+
+  uint32_t next_32() {
+    const auto oldstate = state;
+    state = state * PCG_DEFAULT_MULTIPLIER_64 + PCG_DEFAULT_INCREMENT_64;
+    return rotr_32(((oldstate >> 18) ^ oldstate) >> 27, oldstate >> 59);
+  }
+
+  bool nextBool() { return next_32() & BOOL_MASK; }
+
+  // Move only type
+  ~FastRand32() = default;
+  FastRand32(const FastRand32 &rnd) = delete;
+  FastRand32 &operator=(const FastRand32 &rnd) = delete;
+  FastRand32(FastRand32 &&rnd) = default;
+  FastRand32 &operator=(FastRand32 &&rnd) = default;
+};
+
+static_assert(!std::is_copy_constructible<FastRand32>::value);
+static_assert(!std::is_copy_assignable<FastRand32>::value);
+static_assert(std::is_move_constructible<FastRand32>::value);
+static_assert(std::is_move_assignable<FastRand32>::value);
 
 /**
  * The stress test turns complex numbers in a circle in the complex number
@@ -105,7 +149,7 @@ private:
 
   alignas(align1K) std::array<CNumber, elemCount> testData{};
 
-  // Random angle between 0° and 45°
+  // Random angle between 0° and 45° (in radians)
   static double nextAngle(FastRand &rndGen) {
     return rndGen.nextDouble() * radian45;
   }
@@ -140,14 +184,13 @@ private:
     return CNumber{realPart, imagPart};
   }
 
-  static CNumber randomlyFlip(FastRand &rndGen, CNumber input) {
+  static CNumber randomlyFlip(FastRand32 &rndGen32, CNumber input) {
     static_assert(sizeof(uint64_t) == sizeof(CNumber::value_type));
     // Randomly flip the sign of the imag part and swap real with imag. Since
     // the length doesn't change, the resulting point is still part of the
     // circle with radius 2. If the sign is flipped, it's a 90° counterclockwise
     // rotation, if not, it's a mirror on the y=x axis.
-    static constexpr auto HIGHEST_BIT = (UINT64_C(1) << 63);
-    const auto imagMask = rndGen.next_64() & HIGHEST_BIT;
+    const auto imagMask = static_cast<uint64_t>(rndGen32.nextBool()) << 63;
 
     auto imag = input.imag();
     uint64_t imagAsInt{};
@@ -175,13 +218,14 @@ private:
     return CNumber{aTimesC - bTimesD, aTimesD + bTimesC};
   }
 
-  static CNumber processElement(FastRand &rndGen, CNumber input) {
+  void processElement(FastRand &rndGen, FastRand32 &rndGen32, unsigned index) {
     // Randomly rotate 0-45° counterclockwise
     const auto rotationAngle = nextAngle(rndGen);
     const auto transformationMultiplier =
         transformationMultiplierForRotation(rotationAngle);
-    const auto rotatedResult = multiply(input, transformationMultiplier);
-    return randomlyFlip(rndGen, rotatedResult);
+    const auto rotatedResult =
+        multiply(testData[index], transformationMultiplier);
+    testData[index] = randomlyFlip(rndGen32, rotatedResult);
   }
 
 public:
@@ -210,15 +254,21 @@ public:
      * slower. (Even though it's hot data, not sure why it would be so slow. Is
      * it overwhelming the cache/memory subsystem? I can't imagine that it
      * does.)
+     * --------
+     * Changed to two different random generator algorithms: depending on the
+     * compile target, the rotation could be compiled to a few FMA and other
+     * floating point arithmetic instructions. This change could potentially
+     * help balance the load between integer and floating point backends.
      */
     FastRand rndGen{};
-    FastRand rndGen2{};
+    FastRand32 rndGen32{};
 
     for (auto i = 0; i < loopCount; i++) {
-
+      // Manually unrolling seems to help native performance, both single
+      // thread or loading all logical cores.
       for (uint32_t i = 0; i < testData.size(); i += 2) {
-        testData[i] = processElement(rndGen, testData[i]);
-        testData[i + 1] = processElement(rndGen2, testData[i + 1]);
+        processElement(rndGen, rndGen32, i);
+        processElement(rndGen, rndGen32, i + 1);
       }
       // This reverse loop guarantees that each accessed element is right next
       // to the previous element. While perf stat do report lower LLC loads and
@@ -227,15 +277,15 @@ public:
       // small caches. There, it could reduce wasted cycles due to pipeline
       // stalls in case of cache misses.
       for (int32_t i = testData.size() - 1; i >= 0; i -= 2) {
-        testData[i] = processElement(rndGen, testData[i]);
-        testData[i - 1] = processElement(rndGen2, testData[i - 1]);
+        processElement(rndGen, rndGen32, i);
+        processElement(rndGen, rndGen32, i - 1);
       }
     }
 
     // Quick way to guarantee that the optimizer can't remove the main loop.
     // Bias doesn't matter here. Just that it's possible to select any element
     // in the array. testData[0] is the last element changed by the loop above.
-    const auto index = rndGen.next_64() % elemCount;
+    const auto index = rndGen32.next_32() % elemCount;
     return testData[0].imag() + testData[index].real();
   }
 

@@ -34,7 +34,7 @@ const modulePlugins = [
 
 export default [
 	{
-		input: 'js/script.js',
+		input: 'js/main/main.js',
 		output: {
 			file: 'js/script.bundle.min.js',
 			format: 'es',

@@ -6,7 +6,7 @@ sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out
 
 : <<'multi_line_comment'
 Uncomment to run test that saturates 8 logical cores.
-multi_line_comment
+
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test1.txt &"
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test2.txt &"
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test3.txt &"
@@ -15,7 +15,7 @@ eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test6.txt &"
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test7.txt &"
 eval "nohup sudo perf stat -r 3 --scale -d -d -d -B -D 9 -- chrt -b 0 nice -n -2 ./test.out &> ./test8.txt &"
-
+multi_line_comment
 
 : <<'multi_line_comment'
 Record and show a profile of the test with these commands

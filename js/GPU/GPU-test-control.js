@@ -1,12 +1,13 @@
 import { html } from "lit-html";
-import { StyledElement, register } from "../common/my-element.js";
+import { StyledElement, TestElement, register } from "../common/my-element.js";
 
 /*
 * TODO: switch to OffscreenCanvas, when firefox adds support for it
 * TODO: switch to WebGPU, when both chromium and firefox supports it
 */
 
-// 
+// Some GPUs could have an issue with overly wide or high render
+// resolutions. Use a square canvas
 const renderAreaSize = 1987;
 
 register("test-target", class TestTargetElement extends StyledElement {
@@ -33,7 +34,14 @@ register("test-target", class TestTargetElement extends StyledElement {
 			stencil: false,
 		});
 
-		// globalThis.testTargetElement = this;
-		// console.dir(this);
+	}
+});
+
+register("gpu-test", class GPUTestElement extends TestElement {
+	render() {
+		return html`
+<h5>GPU Test</h5>
+<p>Soon™</p>
+`;
 	}
 });

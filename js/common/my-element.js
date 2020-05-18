@@ -18,6 +18,26 @@ export class StyledElement extends LitElement {
 	}
 };
 
+export class TestElement extends StyledElement {
+	static get properties() {
+		return {
+			testStats: {
+				type: Object,
+			},
+		};
+	}
+
+	constructor() {
+		super();
+		this.testStats = Object.create(null);
+		this.testStats.testRunning = false;
+	}
+
+	startTest() { }
+
+	stopTest() { }
+}
+
 export const register = (htmlTag, classFunc) => {
 	customElements.define(htmlTag, classFunc);
 };
