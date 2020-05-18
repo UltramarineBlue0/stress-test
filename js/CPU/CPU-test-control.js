@@ -50,8 +50,8 @@ register("cpu-test", class CPUTestElement extends TestElement {
 	<input type="number" class="form-control" inputmode="numeric" min=${minThreads} max=${maxThreads} value=${visibleThreads} required id="numberOfThreads">
 </div>
 <div ?hidden=${!this.testStats.testRunning}>
-<p><b>Score</b></p>
-<p>${this.testStats.testScore}</p>
+<p><b>Score</b>
+<br>${this.testStats.testScore}</p>
 </div>
 		`;
 	}
@@ -63,7 +63,7 @@ register("cpu-test", class CPUTestElement extends TestElement {
 		});
 		this.testStats.testScore = score;
 		this.requestUpdate();
-		this.scoreUpdater = setTimeout(() => this.updateTestScore(), 1000);
+		this.scoreUpdater = setTimeout(() => this.updateTestScore(), 2000);
 	}
 
 	startTest() {
@@ -91,6 +91,7 @@ register("cpu-test", class CPUTestElement extends TestElement {
 		if (!isAbsent(this.scoreUpdater)) {
 			clearTimeout(this.scoreUpdater);
 		}
+		this.scoreUpdater = null;
 		this.testStats.testScore = "";
 		this.testStats.testRunning = false;
 		this.requestUpdate();
