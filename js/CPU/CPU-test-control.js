@@ -9,17 +9,18 @@ const workerScript = new URL("worker.min.js", import.meta.url);
 
 // TODO: convert to module worker when firefox supports it
 class WasmTestWorker {
+	// Score calculated inside the web worker.
+	score = 0;
+	worker = new Worker(workerScript, {
+		type: "classic",
+		credentials: "omit",
+	});
+
 	constructor() {
-		this.worker = new Worker(workerScript, {
-			type: "classic",
-			credentials: "omit",
-		});
 		this.worker.onerror = e => {
-			notify(`CPU test: Web worker error: ${e.message}`);
+			console.log(`CPU test: Web worker error: ${e.message}`);
 		};
 		this.worker.onmessage = e => this.handleEvent(e);
-		// Score calculated inside the web worker.
-		this.score = 0;
 	}
 
 	handleEvent(event) {
@@ -42,6 +43,9 @@ const visibleThreads = navigator.hardwareConcurrency;
 const maxThreads = 8 * visibleThreads;
 
 register("cpu-test", class CPUTestElement extends TestElement {
+	cpuThreads = [];
+	scoreUpdater = null;
+
 	render() {
 		return html`
 <h5>CPU Test</h5>
@@ -63,13 +67,13 @@ register("cpu-test", class CPUTestElement extends TestElement {
 		});
 		this.testStats.testScore = score;
 		this.requestUpdate();
+		// Update CPU score every 2 seconds
 		this.scoreUpdater = setTimeout(() => this.updateTestScore(), 2000);
 	}
 
 	startTest() {
 		if (this.numberOfThreads.reportValidity()) {
 			const threadCount = Math.trunc(this.numberOfThreads.valueAsNumber);
-			this.cpuThreads = [];
 			for (let i = 0; i < threadCount; i++) {
 				this.cpuThreads.push(new WasmTestWorker());
 			}
@@ -84,14 +88,13 @@ register("cpu-test", class CPUTestElement extends TestElement {
 	}
 
 	stopTest() {
-		if (!isAbsent(this.cpuThreads)) {
-			this.cpuThreads.forEach(thread => thread.stop());
+		while (this.cpuThreads.length > 0) {
+			this.cpuThreads.pop().stop();
 		}
-		this.cpuThreads = [];
 		if (!isAbsent(this.scoreUpdater)) {
 			clearTimeout(this.scoreUpdater);
+			this.scoreUpdater = null;
 		}
-		this.scoreUpdater = null;
 		this.testStats.testScore = "";
 		this.testStats.testRunning = false;
 		this.requestUpdate();

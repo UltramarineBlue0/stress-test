@@ -15,10 +15,7 @@ register("web-components-support", class BrowserSupportElement extends StyledEle
 });
 
 register("test-interface", class TestInterfaceElement extends StyledElement {
-	constructor() {
-		super();
-		this.testRunning = false;
-	}
+	testRunning = false;
 
 	testButtonClick() {
 		if (isAbsent(this.cpuTest) || isAbsent(this.cpuTest)) {

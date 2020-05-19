@@ -6,18 +6,13 @@ import { html } from "lit-html";
 let notifier = null;
 
 register("notify-element", class NotifyElement extends StyledElement {
-	static get properties() {
-		return {
-			messages: {
-				type: Array,
-			},
-		};
-	}
+	static properties = {
+		messages: {
+			type: Array,
+		},
+	};
 
-	constructor() {
-		super();
-		this.messages = [];
-	}
+	messages = [];
 
 	deferredInitialization() {
 		notifier = this;

@@ -19,17 +19,16 @@ export class StyledElement extends LitElement {
 };
 
 export class TestElement extends StyledElement {
-	static get properties() {
-		return {
-			testStats: {
-				type: Object,
-			},
-		};
-	}
+	static properties = {
+		testStats: {
+			type: Object,
+		},
+	};
+
+	testStats = Object.create(null);
 
 	constructor() {
 		super();
-		this.testStats = Object.create(null);
 		this.testStats.testRunning = false;
 	}
 

@@ -77,12 +77,6 @@ static_assert(std::is_move_assignable<FastRand>::value);
  */
 class FastRand32 {
 private:
-  static constexpr auto PCG_DEFAULT_MULTIPLIER_64 =
-      UINT64_C(6364136223846793005);
-  static constexpr auto PCG_DEFAULT_INCREMENT_64 =
-      UINT64_C(1442695040888963407);
-  static constexpr auto BOOL_MASK = UINT32_C(1);
-
   static uint32_t rotr_32(uint32_t value, uint32_t rot) {
     return (value >> rot) | (value << ((-rot) & 31));
   }
@@ -97,12 +91,19 @@ public:
   }
 
   uint32_t next_32() {
+    static constexpr auto PCG_DEFAULT_MULTIPLIER_64 =
+        UINT64_C(6364136223846793005);
+    static constexpr auto PCG_DEFAULT_INCREMENT_64 =
+        UINT64_C(1442695040888963407);
     const auto oldstate = state;
     state = state * PCG_DEFAULT_MULTIPLIER_64 + PCG_DEFAULT_INCREMENT_64;
     return rotr_32(((oldstate >> 18) ^ oldstate) >> 27, oldstate >> 59);
   }
 
-  bool nextBool() { return next_32() & BOOL_MASK; }
+  bool nextBool() {
+    static constexpr auto BOOL_MASK = UINT32_C(1);
+    return next_32() & BOOL_MASK;
+  }
 
   // Move only type
   ~FastRand32() = default;
@@ -134,9 +135,6 @@ using CNumber = std::complex<double>;
 
 class alignas(align1K) StressTest {
 private:
-  // 45° angle in radians
-  static constexpr auto radian45 =
-      0.78539816339744830961566084581987572104929234984377645524373614807695410157155225;
   // Polar coord: radius 2; 45° angle
   static constexpr auto startingCoordinate =
       1.41421356237309504880168872420969807856967187537694807317667973799073247846210704;
@@ -151,6 +149,9 @@ private:
 
   // Random angle between 0° and 45° (in radians)
   static double nextAngle(FastRand &rndGen) {
+    // 45° angle in radians
+    static constexpr auto radian45 =
+        0.78539816339744830961566084581987572104929234984377645524373614807695410157155225;
     return rndGen.nextDouble() * radian45;
   }
 

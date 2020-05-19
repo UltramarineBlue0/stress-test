@@ -5,23 +5,48 @@ importScripts("WasmTest.js");
 
 import { START_TEST, TEST_STOPPED, TEST_RUNNING, STOP_TEST, WORKER_READY } from "./CPU-test-event.js";
 import { queueTask, cancelTask } from "../common/utils.js";
+import { SlidingWindowScoring } from "../common/score.js";
+
+class CPUTestScore extends SlidingWindowScoring {
+	constructor() {
+		super(3);
+	}
+
+	static newInitialValue() {
+		return {
+			duration: 0,
+			iteration: 0,
+		};
+	}
+
+	static accumulate(accumulator, currentElement) {
+		accumulator.duration += currentElement.score.duration;
+		accumulator.iteration++;
+		return accumulator;
+	}
+
+	getNewScore(loopStartTime, loopEndTime) {
+		// In minutes
+		const loopDuration = (loopEndTime - loopStartTime) / 1000 / 60;
+		this.addScore({ duration: loopDuration }, loopEndTime);
+		const score = this.calculateScore(loopEndTime);
+		// Score is loops per minute in the last 3 minutes
+		return score.iteration / score.duration;
+	}
+}
 
 self.Module().then(WasmTest => {
 
 	let testStatus = TEST_STOPPED;
-	let testDuration = 0;
-	let loopCount = 0;
 	let testTaskId = undefined;
+	let testScoring = new CPUTestScore();
 
 	const testFunction = () => {
 		if (testStatus === TEST_RUNNING) {
 			const startTime = performance.now();
 			const result = WasmTest._runTest();
-			// In minutes
-			testDuration += (performance.now() - startTime) / 1000 / 60;
-			loopCount++;
-			// Currently loops per minute
-			const score = loopCount / testDuration;
+			const endTime = performance.now();
+			const score = testScoring.getNewScore(startTime, endTime);
 			testTaskId = queueTask(testFunction);
 			postMessage({
 				state: testStatus,
@@ -37,8 +62,7 @@ self.Module().then(WasmTest => {
 	self.addEventListener("message", e => {
 		if ((e.data === START_TEST) && testStatus !== TEST_RUNNING) {
 			testStatus = TEST_RUNNING;
-			testDuration = 0;
-			loopCount = 0;
+			testScoring = new CPUTestScore();
 			testTaskId = queueTask(testFunction);
 		}
 		if ((e.data === STOP_TEST) && testStatus === TEST_RUNNING) {
